@@ -20,7 +20,7 @@ catd
 catd src/
 
 # Show files matching pattern
-catd *.js
+catd **/*package.json | pbcopy
 
 # Copy to clipboard for AI
 catd | pbcopy
