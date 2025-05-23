@@ -1,0 +1,398 @@
+#!/usr/bin/env bun
+import { readdirSync, readFileSync, statSync, existsSync } from 'fs';
+import { join, relative, dirname, extname } from 'path';
+import minimist from 'minimist';
+
+// Array of files and patterns to ignore
+const IGNORED_FILES = [
+  'uv.lock',
+  'package-lock.json',
+  'yarn.lock',
+  'pnpm-lock.yaml',
+];
+
+const IGNORED_DIRECTORIES = [
+  'node_modules',
+  'venv',
+  'env',
+  'dist',
+  'build',
+  '__pycache__'
+];
+
+// ANSI color codes for terminal output
+const COLORS = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  dim: '\x1b[2m',
+  folder: '\x1b[34m',
+  file: '\x1b[36m',
+  gray: '\x1b[90m',
+  yellow: '\x1b[33m',
+};
+
+// Parse arguments with minimist
+const argv = minimist(process.argv.slice(2), {
+  string: ['ignore'],
+  alias: { i: 'ignore' },
+  boolean: ['tree', 't', 'full', 'f'],
+  alias: { 
+    i: 'ignore',
+    t: 'tree',
+    f: 'full'
+  }
+});
+
+// Get all non-flag arguments (these could be folders or patterns)
+const args = argv._.length ? argv._ : ['.'];
+
+// Convert ignore option to array even if it's a single value
+const ignorePatterns = Array.isArray(argv.ignore) 
+  ? argv.ignore 
+  : (argv.ignore ? [argv.ignore] : []);
+
+// Check if output is to a terminal or being piped
+const isOutputPiped = !process.stdout.isTTY;
+// Force tree mode if requested, otherwise use terminal detection
+const useTreeMode = argv.tree || (!isOutputPiped && !argv.notree);
+// Whether to show full content of CSV/TSV files
+const showFullContent = argv.full || false;
+
+// Default slice settings for CSV/TSV files
+const DEFAULT_SLICE_ROWS = 5;
+
+// Function to identify if a file is CSV or TSV
+function isCsvOrTsv(filePath: string): boolean {
+  const ext = extname(filePath).toLowerCase();
+  return ext === '.csv' || ext === '.tsv';
+}
+
+// Function to match a filename against a glob pattern
+function matchesPattern(filename: string, pattern: string): boolean {
+  // Basic glob pattern matching for * and ? characters
+  // Convert glob pattern to regex
+  const regexPattern = pattern
+    .replace(/\./g, '\\.') // Escape dots
+    .replace(/\*/g, '.*')  // * becomes .*
+    .replace(/\?/g, '.')   // ? becomes .
+  
+  const regex = new RegExp(`^${regexPattern}$`);
+  return regex.test(filename);
+}
+
+function shouldIgnorePath(path: string, stats: ReturnType<typeof statSync>): boolean {
+  const baseName = path.split('/').pop() || '';
+  
+  // Check if it's a hidden file/directory
+  if (baseName.startsWith('.')) {
+    return true;
+  }
+  
+  // Check if it's in the ignored files list
+  if (IGNORED_FILES.includes(baseName)) {
+    return true;
+  }
+  
+  // Check if it's an ignored directory
+  if (stats.isDirectory() && IGNORED_DIRECTORIES.includes(baseName)) {
+    return true;
+  }
+  
+  // Check user-specified patterns to ignore
+  for (const pattern of ignorePatterns) {
+    // Normalize paths by removing leading ./
+    const normalizedPath = path.replace(/^\.\//, '');
+    const normalizedPattern = pattern.replace(/^\.\//, '');
+    
+    if (normalizedPath === normalizedPattern || 
+        normalizedPath.startsWith(normalizedPattern + '/')) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+function isPlainText(filePath: string): boolean {
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    return !/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(content);
+  } catch (err) {
+    return false;
+  }
+}
+
+// Function to slice CSV/TSV content
+function sliceTabularContent(content: string): string {
+  const rows = content.split('\n').filter(row => row.trim() !== '');
+  
+  // If the file is small enough, return the full content
+  if (rows.length <= DEFAULT_SLICE_ROWS * 2 + 1) {
+    return content;
+  }
+  
+  // Get header row (first row)
+  const header = rows[0];
+  
+  // Get first N rows (excluding header)
+  const firstRows = rows.slice(1, DEFAULT_SLICE_ROWS + 1);
+  
+  // Get last N rows
+  const lastRows = rows.slice(-DEFAULT_SLICE_ROWS);
+  
+  // Combine with ellipsis in the middle
+  return [header, ...firstRows, '...', ...lastRows].join('\n');
+}
+
+// Get all files matching a pattern in a directory
+function getFilesMatchingPattern(dirPath: string, pattern: string): string[] {
+  try {
+    const files = readdirSync(dirPath);
+    return files
+      .filter(file => matchesPattern(file, pattern))
+      .map(file => join(dirPath, file));
+  } catch (err) {
+    console.error(`Error reading directory ${dirPath}:`, err);
+    return [];
+  }
+}
+
+// Standard pipe-friendly output
+function printFilesInDirectory(dirPath: string, patternFilter?: string): void {
+  try {
+    // If this is a direct file path and not a directory
+    if (existsSync(dirPath) && !statSync(dirPath).isDirectory()) {
+      if (isPlainText(dirPath)) {
+        const relativePath = relative(process.cwd(), dirPath);
+        let fileContent = readFileSync(dirPath, 'utf-8');
+        
+        console.log(`./${relativePath}`);
+        
+        // Handle CSV/TSV files differently
+        if (isCsvOrTsv(dirPath) && !showFullContent) {
+          // Check if we're in a terminal that supports colors
+          if (process.stdout.isTTY) {
+            console.log(`${COLORS.yellow}[ SLICED ]${COLORS.reset}`);
+          } else {
+            console.log(`[ SLICED ]`);
+          }
+          fileContent = sliceTabularContent(fileContent);
+        }
+        
+        console.log('```');
+        console.log(fileContent);
+        console.log('```');
+      }
+      return;
+    }
+
+    // Process directory
+    const files = readdirSync(dirPath);
+    for (const file of files) {
+      const filePath = join(dirPath, file);
+      const stats = statSync(filePath);
+      
+      if (shouldIgnorePath(filePath, stats)) {
+        continue;
+      }
+      
+      if (stats.isDirectory()) {
+        printFilesInDirectory(filePath, patternFilter);
+      } else if (isPlainText(filePath) && (!patternFilter || matchesPattern(file, patternFilter))) {
+        const relativePath = relative(process.cwd(), filePath);
+        let fileContent = readFileSync(filePath, 'utf-8');
+        
+        console.log(`./${relativePath}`);
+        
+        // Handle CSV/TSV files differently
+        if (isCsvOrTsv(filePath) && !showFullContent) {
+          // Check if we're in a terminal that supports colors
+          if (process.stdout.isTTY) {
+            console.log(`${COLORS.yellow}[ SLICED ]${COLORS.reset}`);
+          } else {
+            console.log(`[ SLICED ]`);
+          }
+          fileContent = sliceTabularContent(fileContent);
+        }
+        
+        console.log('```');
+        console.log(fileContent);
+        console.log('```');
+      }
+    }
+  } catch (err) {
+    console.error(`Error reading path ${dirPath}:`, err);
+  }
+}
+
+// Tree-based terminal output with optional pattern filtering
+function generateFileTree(dirPath: string, prefix = '', patternFilter?: string): void {
+  try {
+    // If this is a direct file path and not a directory
+    if (existsSync(dirPath) && !statSync(dirPath).isDirectory()) {
+      const file = dirPath.split('/').pop() || '';
+      // If no pattern filter or file matches the pattern
+      if (!patternFilter || matchesPattern(file, patternFilter)) {
+        const stats = statSync(dirPath);
+        const relativePath = relative(process.cwd(), dirPath);
+        
+        // Print file name with color
+        console.log(`${prefix}└── ${COLORS.file}${file}${COLORS.reset}`);
+        
+        // Show file size
+        const fileSize = stats.size;
+        const sizeStr = fileSize < 1024 
+          ? `${fileSize} bytes` 
+          : `${(fileSize / 1024).toFixed(1)} KB`;
+        
+        // Indicate if it's a CSV/TSV file that would be sliced in content view
+        if (isCsvOrTsv(dirPath) && !showFullContent) {
+          // Check if we're in a terminal that supports colors
+          if (process.stdout.isTTY) {
+            console.log(`${prefix}    ${COLORS.gray}${sizeStr} ${COLORS.yellow}[ SLICED in content view ]${COLORS.reset}`);
+          } else {
+            console.log(`${prefix}    ${sizeStr} [ SLICED in content view ]`);
+          }
+        } else {
+          console.log(`${prefix}    ${COLORS.gray}${sizeStr}${COLORS.reset}`);
+        }
+      }
+      return;
+    }
+
+    // Process directory
+    const files = readdirSync(dirPath);
+    
+    // Sort so directories come first, then files
+    const sorted = files.sort((a, b) => {
+      const aPath = join(dirPath, a);
+      const bPath = join(dirPath, b);
+      const aIsDir = statSync(aPath).isDirectory();
+      const bIsDir = statSync(bPath).isDirectory();
+      
+      if (aIsDir && !bIsDir) return -1;
+      if (!aIsDir && bIsDir) return 1;
+      return a.localeCompare(b);
+    });
+    
+    // If we have a pattern filter, only show matching files at this level
+    const filteredSorted = patternFilter
+      ? sorted.filter(file => {
+          const filePath = join(dirPath, file);
+          const stats = statSync(filePath);
+          return stats.isDirectory() || matchesPattern(file, patternFilter);
+        })
+      : sorted;
+    
+    filteredSorted.forEach((file, index) => {
+      const filePath = join(dirPath, file);
+      const stats = statSync(filePath);
+      
+      if (shouldIgnorePath(filePath, stats)) {
+        return;
+      }
+      
+      const isLast = index === filteredSorted.length - 1;
+      
+      // Determine branch characters for the tree
+      const branch = isLast ? '└── ' : '├── ';
+      const newPrefix = prefix + (isLast ? '    ' : '│   ');
+      
+      if (stats.isDirectory()) {
+        // Print directory with color
+        console.log(`${prefix}${branch}${COLORS.bright}${COLORS.folder}${file}/${COLORS.reset}`);
+        generateFileTree(filePath, newPrefix, patternFilter);
+      } else if (isPlainText(filePath) && (!patternFilter || matchesPattern(file, patternFilter))) {
+        // Print file name with color
+        console.log(`${prefix}${branch}${COLORS.file}${file}${COLORS.reset}`);
+        
+        // Show file size info
+        const fileSize = stats.size;
+        const sizeStr = fileSize < 1024 
+          ? `${fileSize} bytes` 
+          : `${(fileSize / 1024).toFixed(1)} KB`;
+        
+        // Indicate if it's a CSV/TSV file that would be sliced in content view
+        if (isCsvOrTsv(filePath) && !showFullContent) {
+          // Check if we're in a terminal that supports colors
+          if (process.stdout.isTTY) {
+            console.log(`${newPrefix}${COLORS.gray}${sizeStr} ${COLORS.yellow}[ SLICED in content view ]${COLORS.reset}`);
+          } else {
+            console.log(`${newPrefix}${sizeStr} [ SLICED in content view ]`);
+          }
+        } else {
+          console.log(`${newPrefix}${COLORS.gray}${sizeStr}${COLORS.reset}`);
+        }
+      }
+    });
+  } catch (err) {
+    console.error(`Error reading path ${dirPath}:`, err);
+  }
+}
+
+// Process arguments that could be patterns or directories
+function processArgument(arg: string): void {
+  // Check if the argument contains glob pattern characters
+  const hasPattern = arg.includes('*') || arg.includes('?');
+  
+  if (hasPattern) {
+    // Split the path to separate the directory and pattern
+    const lastSlashIndex = arg.lastIndexOf('/');
+    let dirPath = '.';
+    let pattern = arg;
+    
+    if (lastSlashIndex !== -1) {
+      dirPath = arg.substring(0, lastSlashIndex) || '.';
+      pattern = arg.substring(lastSlashIndex + 1);
+    }
+    
+    // Choose output style based on detection and flags
+    if (useTreeMode) {
+      if (!existsSync(dirPath)) {
+        console.error(`Directory not found: ${dirPath}`);
+        return;
+      }
+      
+      console.log(`${COLORS.bright}File Tree (pattern: ${pattern}):${COLORS.reset}`);
+      generateFileTree(dirPath, '', pattern);
+    } else {
+      printFilesInDirectory(dirPath, pattern);
+    }
+  } else {
+    // Regular file or directory path
+    if (!existsSync(arg)) {
+      console.error(`Path not found: ${arg}`);
+      return;
+    }
+    
+    // Choose output style based on detection and flags
+    if (useTreeMode) {
+      console.log(`${COLORS.bright}File Tree:${COLORS.reset}`);
+      generateFileTree(arg);
+    } else {
+      printFilesInDirectory(arg);
+    }
+  }
+}
+
+// Display usage if --help flag is provided
+if (argv.help || argv.h) {
+  console.log('Usage: catd [folder|pattern] [options]');
+  console.log('');
+  console.log('Examples:');
+  console.log('  catd                # Show all files in current directory');
+  console.log('  catd src            # Show all files in src directory');
+  console.log('  catd *.sql          # Show all SQL files in current directory');
+  console.log('  catd src/*.js       # Show all JS files in src directory');
+  console.log('');
+  console.log('Options:');
+  console.log('  --ignore, -i    Specify path pattern to ignore (can be used multiple times)');
+  console.log('  --tree, -t      Force tree output mode even when piping');
+  console.log('  --notree        Force flat output mode even in terminal');
+  console.log('  --full, -f      Show full content of CSV/TSV files (not sliced)');
+  console.log('  --help, -h      Show this help message');
+  process.exit(0);
+}
+
+// Process each argument
+args.forEach(processArgument);
