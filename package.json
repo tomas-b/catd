@@ -1,0 +1,41 @@
+{
+  "name": "catd",
+  "version": "1.0.0",
+  "description": "A powerful file concatenation tool with git integration",
+  "main": "src/catd.ts",
+  "bin": {
+    "catd": "dist/catd"
+  },
+  "scripts": {
+    "build": "bun build src/catd.ts --compile --outfile dist/catd",
+    "dev": "bun run src/catd.ts",
+    "test": "bun test",
+    "lint": "tsc --noEmit",
+    "format": "prettier --write src/**/*.ts",
+    "install-completions": "./scripts/install-completions.sh"
+  },
+  "dependencies": {
+    "minimist": "^1.2.8",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/minimist": "^1.2.5",
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.0.0",
+    "prettier": "^3.0.0",
+    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0"
+  },
+  "keywords": ["cli", "files", "concatenate", "git", "developer-tools", "ai"],
+  "author": "catd",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/catd"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+} 

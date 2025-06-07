@@ -1,0 +1,29 @@
+defaults:
+  ignore:
+    - "node_modules/"
+    - "dist/"
+    - ".git/"
+
+tags:
+  # Global tag (no path restriction)
+  catd-source:
+    paths:
+      - "src/"
+      - "package.json"
+      - "README.md"
+
+  # Scoped to the catd project directory
+  catd-project:
+    path: "~/p/synergy/catd"
+    paths:
+      - "src/"
+      - "examples/"
+      - "completions/"
+      - "package.json"
+
+  # Scoped to a different directory (won't show up in this location)
+  other-project:
+    path: "~/some/other/path"
+    paths:
+      - "src/"
+      - "package.json" 

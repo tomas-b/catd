@@ -1,0 +1,106 @@
+# catd configuration file
+# Place this at ~/.catd.yml or .catd.yml in your project root
+
+# Global defaults
+defaults:
+  # Default ignore patterns (added to all tags)
+  ignore:
+    - "*.log"
+    - "*.cache"
+    - ".env*"
+  # Default number of rows to show for CSV/TSV files
+  slice_rows: 5
+
+# Tag definitions
+tags:
+  # Backend code only
+  backend:
+    paths:
+      - "src/server"
+      - "src/api" 
+      - "src/models"
+      - "package.json"
+      - "*.sql"
+    ignore:
+      - "src/server/public"
+      - "*.min.js"
+
+  # Project-specific tag (only available in ~/projects/my-app and subdirectories)
+  my-app:
+    path: "~/projects/my-app"
+    paths:
+      - "src/"
+      - "package.json"
+      - "README.md"
+    ignore:
+      - "node_modules/"
+      - "dist/"
+
+  # Frontend components
+  frontend:
+    paths:
+      - "src/components"
+      - "src/pages"
+      - "src/styles"
+      - "package.json"
+    ignore:
+      - "*.stories.js"
+      - "*.test.js"
+
+  # Configuration files
+  config:
+    paths:
+      - "package.json"
+      - "tsconfig.json"
+      - ".env.example"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - "*.config.js"
+      - "*.config.ts"
+
+  # Documentation
+  docs:
+    paths:
+      - "README.md"
+      - "docs/"
+      - "*.md"
+    ignore:
+      - "node_modules/"
+
+  # Full project (everything)
+  full:
+    paths:
+      - "."
+    ignore:
+      - "node_modules/"
+      - "dist/"
+      - "build/"
+      - ".git/"
+      - "*.log"
+
+  # Only test files
+  tests:
+    paths:
+      - "tests/"
+      - "**/*.test.ts"
+      - "**/*.spec.ts"
+      - "jest.config.js"
+
+  # Database related
+  database:
+    paths:
+      - "migrations/"
+      - "seeds/"
+      - "*.sql"
+      - "database.yml"
+      - "schema.rb"
+
+  # Another project (with relative path from home)
+  work-project:
+    path: "~/work/important-project"
+    paths:
+      - "src/app/"
+      - "src/lib/"
+      - "Cargo.toml"  # Rust project example
+    ignore:
+      - "target/" 
