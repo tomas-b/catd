@@ -4,7 +4,15 @@ import type { ParsedArguments } from "./types";
 export function parseArguments(): ParsedArguments {
   return minimist(process.argv.slice(2), {
     string: ["ignore", "tag"],
-    boolean: ["tree", "full", "git-changes", "list-tags", "list-tags-autocomplete", "help", "version"],
+    boolean: [
+      "tree",
+      "full",
+      "git-changes",
+      "list-tags",
+      "list-tags-autocomplete",
+      "help",
+      "version",
+    ],
     alias: {
       i: "ignore",
       t: "tag",

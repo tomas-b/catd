@@ -1,7 +1,19 @@
 #!/usr/bin/env bun
 import { parseArguments, showHelp, showVersion } from "./cli";
-import { loadConfig, getTagConfig, listTags, isTagInScope, resolveTagPaths } from "./config";
-import { Stats, printCopyStats, estimateTokens, formatTokenCount, countTokensForPath } from "./stats";
+import {
+  loadConfig,
+  getTagConfig,
+  listTags,
+  isTagInScope,
+  resolveTagPaths,
+} from "./config";
+import {
+  Stats,
+  printCopyStats,
+  estimateTokens,
+  formatTokenCount,
+  countTokensForPath,
+} from "./stats";
 import { processArgument } from "./output";
 import { DEFAULT_SLICE_ROWS, COLORS } from "./constants";
 import type { ProcessOptions } from "./types";
@@ -9,7 +21,7 @@ import type { ProcessOptions } from "./types";
 // Get color for token count based on percentage of total tokens
 function getTokenCountColor(percentage: number): string {
   if (!process.stdout.isTTY) return ""; // No color if output is piped
-  
+
   if (percentage >= 70) return COLORS.red;
   if (percentage >= 40) return COLORS.orange;
   if (percentage >= 15) return COLORS.yellow;
@@ -37,7 +49,7 @@ async function main() {
   // Handle list-tags-autocomplete (simple output for shell completion)
   if (argv["list-tags-autocomplete"]) {
     const tags = listTags(config);
-    tags.forEach(tag => console.log(tag));
+    tags.forEach((tag) => console.log(tag));
     process.exit(0);
   }
 
@@ -55,43 +67,49 @@ async function main() {
         const tagConfig = getTagConfig(config!, tagName);
         if (tagConfig) {
           const tempOptions = {
-            ignorePatterns: [...(config?.defaults?.ignore || []), ...(tagConfig.ignore || [])],
+            ignorePatterns: [
+              ...(config?.defaults?.ignore || []),
+              ...(tagConfig.ignore || []),
+            ],
             useTreeMode: false,
             showFullContent: false,
             showOnlyGitChanges: false,
             sliceRows: config?.defaults?.slice_rows || DEFAULT_SLICE_ROWS,
           };
-          
+
           const resolvedPaths = resolveTagPaths(tagConfig);
-          const pathTokens: Array<{path: string, tokens: number}> = [];
+          const pathTokens: Array<{ path: string; tokens: number }> = [];
           let totalTokens = 0;
-          
+
           // Count tokens for each path individually
           for (const path of resolvedPaths) {
             const tokens = countTokensForPath(path, tempOptions);
             pathTokens.push({ path, tokens });
             totalTokens += tokens;
           }
-          
+
           console.log(`  ${tagName} [${formatTokenCount(totalTokens)} total]`);
-          
+
           // Show individual path token counts with color coding
-          for (const {path, tokens} of pathTokens) {
+          for (const { path, tokens } of pathTokens) {
             if (tokens > 0) {
               // Make path relative to current directory for cleaner display
-              const relativePath = path.startsWith(process.cwd()) 
+              const relativePath = path.startsWith(process.cwd())
                 ? path.substring(process.cwd().length + 1)
                 : path;
-              
+
               // Calculate percentage and get color
-              const percentage = totalTokens > 0 ? (tokens / totalTokens) * 100 : 0;
+              const percentage =
+                totalTokens > 0 ? (tokens / totalTokens) * 100 : 0;
               const color = getTokenCountColor(percentage);
               const reset = process.stdout.isTTY ? COLORS.reset : "";
-              
-              console.log(`    ${relativePath} [${color}${formatTokenCount(tokens)}${reset}] (${percentage.toFixed(1)}%)`);
+
+              console.log(
+                `    ${relativePath} [${color}${formatTokenCount(tokens)}${reset}] (${percentage.toFixed(1)}%)`,
+              );
             }
           }
-          
+
           console.log(); // Empty line between tags
         }
       }

@@ -51,39 +51,41 @@ export function printCopyStats(stats: Stats): void {
 }
 
 // Silent version that just counts tokens without any output
-export function countTokensForPath(
-  path: string,
-  options: any,
-): number {
+export function countTokensForPath(path: string, options: any): number {
   const stats = new Stats();
-  
+
   try {
     // Import these dynamically to avoid circular dependencies
     const fs = require("fs");
     const pathModule = require("path");
-    const { shouldIgnorePath, isPlainText, isCsvOrTsv, sliceTabularContent } = require("./files");
+    const {
+      shouldIgnorePath,
+      isPlainText,
+      isCsvOrTsv,
+      sliceTabularContent,
+    } = require("./files");
     const { hasGitChanges } = require("./git");
-    
+
     if (!fs.existsSync(path)) {
       return 0;
     }
-    
+
     const pathStats = fs.statSync(path);
-    
+
     if (shouldIgnorePath(path, pathStats, options.ignorePatterns)) {
       return 0;
     }
-    
+
     if (pathStats.isDirectory()) {
       const files = fs.readdirSync(path);
       for (const file of files) {
         const filePath = pathModule.join(path, file);
         const fileStats = fs.statSync(filePath);
-        
+
         if (shouldIgnorePath(filePath, fileStats, options.ignorePatterns)) {
           continue;
         }
-        
+
         if (fileStats.isDirectory()) {
           const subTokens = countTokensForPath(filePath, options);
           stats.totalChars += subTokens * 4; // Reverse estimate conversion
@@ -92,11 +94,11 @@ export function countTokensForPath(
           hasGitChanges(filePath, options.showOnlyGitChanges)
         ) {
           let fileContent = fs.readFileSync(filePath, "utf-8");
-          
+
           if (isCsvOrTsv(filePath) && !options.showFullContent) {
             fileContent = sliceTabularContent(fileContent, options.sliceRows);
           }
-          
+
           stats.addFile(fileContent);
         }
       }
@@ -105,16 +107,16 @@ export function countTokensForPath(
       hasGitChanges(path, options.showOnlyGitChanges)
     ) {
       let fileContent = fs.readFileSync(path, "utf-8");
-      
+
       if (isCsvOrTsv(path) && !options.showFullContent) {
         fileContent = sliceTabularContent(fileContent, options.sliceRows);
       }
-      
+
       stats.addFile(fileContent);
     }
   } catch (err) {
     // Silently ignore errors
   }
-  
+
   return estimateTokens(stats.getTotalChars());
 }
