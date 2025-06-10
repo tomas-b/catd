@@ -40,6 +40,7 @@ export interface ParsedArguments {
   "list-tags"?: boolean;
   "list-tags-autocomplete"?: boolean;
   tag?: string;
+  "tag-file"?: string;
   help?: boolean;
   version?: boolean;
 }

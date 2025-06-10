@@ -185,7 +185,7 @@ function expandPath(path: string): string {
 // Resolve tag paths relative to the tag's base directory
 export function resolveTagPaths(tagConfig: TagConfig): string[] {
   const basePath = getTagBasePath(tagConfig);
-  return tagConfig.paths.map((path) => {
+  return tagConfig.paths.map(path => {
     if (resolve(path) === path) {
       // Already absolute path
       return path;
@@ -193,4 +193,43 @@ export function resolveTagPaths(tagConfig: TagConfig): string[] {
     // Resolve relative to tag's base path
     return join(basePath, path);
   });
+}
+
+// Load and parse a single tag file from any location
+export function loadTagFile(filePath: string): { tagName: string; tagConfig: TagConfig } {
+  // Check if file exists
+  if (!existsSync(filePath)) {
+    throw new Error(`Tag file not found: ${filePath}`);
+  }
+
+  // Check if it's a YAML file
+  const ext = extname(filePath).toLowerCase();
+  if (ext !== '.yml' && ext !== '.yaml') {
+    throw new Error(`Tag file must be a .yml or .yaml file: ${filePath}`);
+  }
+
+  // Derive tag name from filename
+  const tagName = basename(filePath, ext);
+
+  try {
+    // Read and parse the file
+    const content = readFileSync(filePath, "utf-8");
+    const tagConfig = yaml.load(content) as TagConfig;
+
+    // Validate the tag configuration
+    if (!tagConfig || typeof tagConfig !== 'object') {
+      throw new Error(`Invalid tag configuration: not a valid YAML object`);
+    }
+
+    if (!tagConfig.paths || !Array.isArray(tagConfig.paths) || tagConfig.paths.length === 0) {
+      throw new Error(`Invalid tag configuration: missing or empty 'paths' field`);
+    }
+
+    return { tagName, tagConfig };
+  } catch (err) {
+    if (err instanceof Error) {
+      throw new Error(`Failed to parse tag file ${filePath}: ${err.message}`);
+    }
+    throw new Error(`Failed to parse tag file ${filePath}: ${String(err)}`);
+  }
 }

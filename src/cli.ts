@@ -3,7 +3,7 @@ import type { ParsedArguments } from "./types";
 
 export function parseArguments(): ParsedArguments {
   return minimist(process.argv.slice(2), {
-    string: ["ignore", "tag"],
+    string: ["ignore", "tag", "tag-file"],
     boolean: [
       "tree",
       "full",
@@ -16,6 +16,7 @@ export function parseArguments(): ParsedArguments {
     alias: {
       i: "ignore",
       t: "tag",
+      T: "tag-file",
       f: "full",
       g: "git-changes",
       h: "help",
@@ -46,6 +47,7 @@ export function showHelp(): void {
   );
   console.log("  catd -t backend | pbcopy    # Copy tagged files to clipboard");
   console.log("  catd --git-changes          # Show only git-changed files");
+  console.log("  catd -T my-tag.yml          # Preview tag file token counts");
   console.log("");
   console.log("Options:");
   console.log(
@@ -53,6 +55,9 @@ export function showHelp(): void {
   );
   console.log(
     "  -t, --tag <name>            Use predefined tag from config file",
+  );
+  console.log(
+    "  -T, --tag-file <path>       Preview tag from local file (token counts)",
   );
   console.log("  -g, --git-changes           Show only files with git changes");
   console.log(
@@ -74,6 +79,7 @@ export function showHelp(): void {
   console.log(
     "  Create ~/.catd.yml or .catd.yml in your project with predefined tags.",
   );
+  console.log("  Or use ~/.catd/ directory with individual tag files.");
   console.log("  See examples/ directory for sample configurations.");
 }
 

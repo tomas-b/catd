@@ -6,6 +6,7 @@ import {
   listTags,
   isTagInScope,
   resolveTagPaths,
+  loadTagFile,
 } from "./config";
 import {
   Stats,
@@ -146,8 +147,61 @@ async function main() {
     sliceRows,
   };
 
-  // Handle tag processing
-  if (argv.tag) {
+  // Handle tag-file processing (takes precedence over regular tag processing)
+  if (argv["tag-file"]) {
+    try {
+      const { tagName, tagConfig } = loadTagFile(argv["tag-file"]);
+      
+      // Create temp options for token counting (similar to --list-tags logic)
+      const tempOptions = {
+        ignorePatterns: [...ignorePatterns, ...(tagConfig.ignore || [])],
+        useTreeMode: false,
+        showFullContent: false,
+        showOnlyGitChanges: false,
+        sliceRows,
+      };
+
+      const resolvedPaths = resolveTagPaths(tagConfig);
+      const pathTokens: Array<{ path: string; tokens: number }> = [];
+      let totalTokens = 0;
+
+      // Count tokens for each path individually
+      for (const path of resolvedPaths) {
+        const tokens = countTokensForPath(path, tempOptions);
+        pathTokens.push({ path, tokens });
+        totalTokens += tokens;
+      }
+
+      console.log(`Tag preview: ${tagName} [${formatTokenCount(totalTokens)} total]`);
+
+      // Show individual path token counts with color coding
+      for (const { path, tokens } of pathTokens) {
+        if (tokens > 0) {
+          // Make path relative to current directory for cleaner display
+          const relativePath = path.startsWith(process.cwd())
+            ? path.substring(process.cwd().length + 1)
+            : path;
+
+          // Calculate percentage and get color
+          const percentage = totalTokens > 0 ? (tokens / totalTokens) * 100 : 0;
+          const color = getTokenCountColor(percentage);
+          const reset = process.stdout.isTTY ? COLORS.reset : "";
+
+          console.log(
+            `  ${relativePath} [${color}${formatTokenCount(tokens)}${reset}] (${percentage.toFixed(1)}%)`
+          );
+        }
+      }
+      
+      if (pathTokens.length === 0 || totalTokens === 0) {
+        console.log("  No files found or all files are empty/ignored");
+      }
+    } catch (error) {
+      console.error("Error loading tag file:", error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  } else if (argv.tag) {
+    // Handle regular tag processing
     if (!config) {
       console.error(
         "No configuration file found. Create ~/.catd.yml or .catd.yml to define tags.",
@@ -175,6 +229,9 @@ async function main() {
   } else {
     // Get all non-flag arguments (these could be folders or patterns)
     const args = argv._.length ? argv._ : ["."];
+
+    // For non-tag operations, use the original tree mode logic
+    options.useTreeMode = argv.tree || !isOutputPiped;
 
     // Process each argument
     for (const arg of args) {
