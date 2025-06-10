@@ -77,9 +77,9 @@ export function showHelp(): void {
   console.log("");
   console.log("Config:");
   console.log(
-    "  Create ~/.catd.yml or .catd.yml in your project with predefined tags.",
+    "  Create ~/.catd/ directory with individual .yml tag files (recommended).",
   );
-  console.log("  Or use ~/.catd/ directory with individual tag files.");
+  console.log("  Or use ~/.catd.yml for legacy single-file configuration.");
   console.log("  See examples/ directory for sample configurations.");
 }
 

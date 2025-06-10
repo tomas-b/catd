@@ -60,7 +60,7 @@ async function main() {
     if (tags.length === 0) {
       console.log("No tags found in configuration.");
       console.log(
-        "Create ~/.catd.yml or .catd.yml in your project with tag definitions.",
+        "Create ~/.catd/ directory with individual tag files, or use ~/.catd.yml for legacy config.",
       );
     } else {
       console.log("Available tags:");
@@ -204,7 +204,7 @@ async function main() {
     // Handle regular tag processing
     if (!config) {
       console.error(
-        "No configuration file found. Create ~/.catd.yml or .catd.yml to define tags.",
+        "No configuration found. Create ~/.catd/ directory with tag files, or ~/.catd.yml for legacy config.",
       );
       process.exit(1);
     }
